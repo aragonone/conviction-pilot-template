@@ -1,20 +1,13 @@
-# Honey Template
+# Conviction Pilot Template
 
-Aragon DAO Template for continuous issuance and bottom up fund allocation. Used as the base for Honey, 1Hive's community currency. 
+Aragon DAO Template for Conviction Pilot program.
 
-## Local deployment
+Takes a reference minime token, admin address, and conviction parameters as input, and deploys an organization using a clone of the reference token for use with conviction voting and uses the reference token itself for funding proposals. In practice this will be used with the ANT token, so voting influence will be determined by ANT balance at some blockheight for the duration of the pilot, and ANT will be used as the currency for proposals. The admin address has full control over the deployment and can remove funds, modify balances, or upgrade the conviction voting app. 
 
-This template depends on a number of yet to be published apps, so to develop locally you must deploy those applications first.
-
-*  Conviction Voting (Latest version with hooks)
-*  Hooked Token Manager (Latest version)
-*  Dandelion Voting (Latest version with hooks)
-*  Tollgate
-*  Issuance
 
 ## Rinkeby deployment using previously deployed template
 
-To deploy a Karma DAO to Rinkeby:
+To deploy a pilot dao to Rinkeby:
 
 1) Install dependencies:
 ```
@@ -26,12 +19,12 @@ $ npm install
 $ npx truffle compile
 ```
 
-3) Configure your DAO in: `scripts/new-dao.js`
+3) Configure deployment in: `scripts/new-pilot.js`
 
 4) Deploy a DAO to Rinkeby (requires a Rinkeby account accessible by the truffle script as documented here:
 https://hack.aragon.org/docs/cli-intro#set-a-private-key):
 ```
-$ npx truffle exec scripts/new-dao.js --network rinkeby
+$ npx truffle exec scripts/new-pilot.js --network rinkeby
 ```
 
 5) Copy the output DAO address into this URL and open it in a web browser:
