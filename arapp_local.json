@@ -1,0 +1,11 @@
+{
+  "environments": {
+    "devnet": {
+      "appName": "pilot-template.aragonpm.eth",
+      "address": "0xa29c843696c5d0838a95f4f8306a7d2bb5fd8bd7",
+      "network": "devnet",
+      "registry": "0xaafca6b0c89521752e559650206d7c925fd0e530"
+    }
+  },
+  "path": "contracts/PilotTemplate.sol"
+}
