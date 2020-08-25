@@ -31,6 +31,7 @@ const pilotTemplateAddress = () => {
 const DAYS = 24 * 60 * 60
 const ONE_HUNDRED_PERCENT = 1e18
 const ONE_TOKEN = 1e18
+const scale = n => parseInt(n * 10 ** 7)
 
 // Create dao transaction one config
 const REFERENCE_TOKEN = "0x34c99d7026d54a4e312d86b10abb097815ce0da5" // staging token
@@ -46,12 +47,12 @@ const BLOCKTIME = 15 // 15 rinkeby, 13 mainnet, 5 xdai
 const CONVERTED_TIME = 1/BLOCKTIME * HALFTIME
 
 
-const DECAY = 1/2 ** (1/CONVERTED_TIME) // alpha 
-const MAX_RATIO = 2500000 // 25 percent
+const DECAY = 1/2 ** (1/CONVERTED_TIME) // alpha
+const MAX_RATIO = 0.25 // 25 percent
 const MIN_THRESHOLD = 0.05 // 5 percent
-const WEIGHT = MAX_RATIO ** 2 * MIN_THRESHOLD / 10000000 // determine weight based on MAX_RATIO and MIN_THRESHOLD
+const WEIGHT = MAX_RATIO ** 2 * MIN_THRESHOLD // determine weight based on MAX_RATIO and MIN_THRESHOLD
 const MIN_EFFECTIVE_SUPPLY = 0.0025 * ONE_HUNDRED_PERCENT // 0.25% minimum effective supply
-const CONVICTION_SETTINGS = [DECAY, MAX_RATIO, WEIGHT, MIN_EFFECTIVE_SUPPLY]
+const CONVICTION_SETTINGS = [scale(DECAY), scale(MAX_RATIO), scale(WEIGHT), MIN_EFFECTIVE_SUPPLY]
 
 module.exports = async (callback) => {
   try {
