@@ -2,6 +2,7 @@ pragma solidity 0.4.24;
 
 import "@aragon/templates-shared/contracts/BaseTemplate.sol";
 import "@1hive/apps-token-manager/contracts/HookedTokenManager.sol";
+import "@1hive/apps-redemptions/contracts/Redemptions.sol";
 import {IConvictionVoting as ConvictionVoting} from "./external/IConvictionVoting.sol";
 
 
@@ -11,11 +12,10 @@ contract PilotTemplate is BaseTemplate {
     string constant private ERROR_NO_CACHE = "NO_CACHE";
 
     //
-    // bytes32 private constant DANDELION_VOTING_APP_ID = keccak256(abi.encodePacked(apmNamehash("open"), keccak256("gardens-dandelion-voting")));
     bytes32 private constant CONVICTION_VOTING_APP_ID = keccak256(abi.encodePacked(apmNamehash("open"), keccak256("conviction-beta")));
     bytes32 private constant HOOKED_TOKEN_MANAGER_APP_ID = keccak256(abi.encodePacked(apmNamehash("open"), keccak256("gardens-token-manager")));
-    // bytes32 private constant ISSUANCE_APP_ID = keccak256(abi.encodePacked(apmNamehash("open"), keccak256("issuance")));
-    // bytes32 private constant TOLLGATE_APP_ID = keccak256(abi.encodePacked(apmNamehash("open"), keccak256("tollgate")));
+    bytes32 private constant REDEMPTIONS_APP_ID = apmNamehash("redemptions");
+
 
     // xdai
     // bytes32 private constant CONVICTION_VOTING_APP_ID = keccak256(abi.encodePacked(apmNamehash("1hive"), keccak256("conviction-voting")));
@@ -28,6 +28,17 @@ contract PilotTemplate is BaseTemplate {
     uint8 private constant ORACLE_PARAM_ID = 203;
     enum Op { NONE, EQ, NEQ, GT, LT, GTE, LTE, RET, NOT, AND, OR, XOR, IF_ELSE }
 
+    struct DeployedContracts {
+        Kernel dao;
+        ACL acl;
+        Vault fundingPoolVault;
+        MiniMeToken referenceToken;
+        ConvictionVoting convictionVoting;
+        MiniMeToken aaant;
+        HookedTokenManager aaantManager;
+    }
+
+    mapping(address => DeployedContracts) internal senderDeployedContracts;
 
     constructor(DAOFactory _daoFactory, ENS _ens, MiniMeTokenFactory _miniMeFactory, IFIFSResolvingRegistrar _aragonID)
         BaseTemplate(_daoFactory, _ens, _miniMeFactory, _aragonID)
@@ -45,13 +56,12 @@ contract PilotTemplate is BaseTemplate {
     * @param _snapshotBlock uint block height for snapshoting voting influence from referenceToken
     * @param _admin address of the account which will have admin rights
     * @param _convictionSettings array of conviction initialization params
-
     */
     function createDaoTxOne(
         MiniMeToken _referenceToken,
         uint _snapshotBlock,
         address _admin,
-        uint64[4] _convictionSettings
+        uint256[4] _convictionSettings
     )
         public
     {
@@ -61,9 +71,9 @@ contract PilotTemplate is BaseTemplate {
 
         _createEvmScriptsRegistryPermissions(acl, _admin, _admin);
         MiniMeToken voteToken = _referenceToken.createCloneToken(
-          "Conviction",
+          "Snapshot ANT",
           18,
-          "CVTN",
+          "sANT",
           _snapshotBlock,
           false
           );
@@ -71,17 +81,84 @@ contract PilotTemplate is BaseTemplate {
         HookedTokenManager hookedTokenManager = _installHookedTokenManagerApp(dao, voteToken, false, TOKEN_MAX_PER_ACCOUNT);
         _createHookedTokenManagerPermissions(acl, _admin, hookedTokenManager);
 
-        ConvictionVoting convictionVoting = _installConvictionVoting(dao, voteToken, fundingPoolVault, address(_referenceToken), _convictionSettings);
+        MiniMeToken aaant = _createToken("Aragon Association Wrapped ANT", "AA-ANT", 18);
+        HookedTokenManager aaantManager = _installHookedTokenManagerApp(dao, aaant, true, TOKEN_MAX_PER_ACCOUNT);
+        _createHookedTokenManagerPermissions(acl, _admin, aaantManager);
 
-        address[] memory grantees = new address[](2);
+        ConvictionVoting convictionVoting = _installConvictionVoting(dao, voteToken, fundingPoolVault, address(aaant), _convictionSettings);
+
+        _storeDeployedContractsTxOne(dao, acl, fundingPoolVault, _referenceToken, convictionVoting, aaant, aaantManager);
+    }
+
+    /**
+    * @dev Create the DAO and initialise the basic apps necessary for gardens
+    * @param _admin address of the account which will have admin rights
+    */
+    function createDaoTxTwo(
+      address _admin
+      )
+        public
+      {
+        (Kernel dao,
+        ACL acl,
+        Vault fundingPoolVault,
+        MiniMeToken referenceToken,
+        ConvictionVoting convictionVoting,
+        MiniMeToken aaant,
+        HookedTokenManager aaantManager) = _getDeployedContractsTxOne();
+
+
+
+        address[] memory redeemableTokens = new address[](1);
+        redeemableTokens[0] = address(referenceToken);
+
+        Redemptions redemptions = _installRedemptions(dao, fundingPoolVault, aaantManager, redeemableTokens);
+        _createRedemptionsPermissions(acl, redemptions, _admin);
+
+        address[] memory grantees = new address[](3);
         grantees[0] = address(convictionVoting);
         grantees[1] = address(_admin);
+        grantees[2] = address(redemptions);
         _createPermissions(acl, grantees, fundingPoolVault, fundingPoolVault.TRANSFER_ROLE(), _admin);
 
         _createConvictionVotingPermissions(acl, convictionVoting, _admin);
 
         _transferRootPermissionsFromTemplateAndFinalizeDAO(dao, _admin);
-    }
+
+        _deleteStoredContracts();
+
+      }
+
+      //   _storeDeployedContractsTxOne(dao, acl, fundingPoolVault, _referenceToken, voteToken, hookedTokenManager, aaant, aaantManager)
+      function _storeDeployedContractsTxOne(Kernel _dao, ACL _acl, Vault _agentOrVault, MiniMeToken _referenceToken, ConvictionVoting _convictionVoting, MiniMeToken _aaant, HookedTokenManager _aaantManager)
+          internal
+      {
+          DeployedContracts storage deployedContracts = senderDeployedContracts[msg.sender];
+          deployedContracts.dao = _dao;
+          deployedContracts.acl = _acl;
+          deployedContracts.fundingPoolVault = _agentOrVault;
+          deployedContracts.referenceToken = _referenceToken;
+          deployedContracts.convictionVoting = _convictionVoting;
+          deployedContracts.aaant = _aaant;
+          deployedContracts.aaantManager = _aaantManager;
+      }
+
+      function _getDeployedContractsTxOne() internal returns (Kernel, ACL, Vault, MiniMeToken, ConvictionVoting, MiniMeToken, HookedTokenManager) {
+          DeployedContracts storage deployedContracts = senderDeployedContracts[msg.sender];
+          return (
+            deployedContracts.dao,
+            deployedContracts.acl,
+            deployedContracts.fundingPoolVault,
+            deployedContracts.referenceToken,
+            deployedContracts.convictionVoting,
+            deployedContracts.aaant,
+            deployedContracts.aaantManager
+          );
+      }
+
+      function _deleteStoredContracts() internal {
+          delete senderDeployedContracts[msg.sender];
+      }
 
     function _installHookedTokenManagerApp(
         Kernel _dao,
@@ -104,7 +181,23 @@ contract PilotTemplate is BaseTemplate {
 
     }
 
-    function _installConvictionVoting(Kernel _dao, MiniMeToken _stakeToken, Vault _agentOrVault, address _requestToken, uint64[4] _convictionSettings)
+    function _installRedemptions(Kernel _dao, Vault _agentOrVault, HookedTokenManager _hookedTokenManager, address[] _redeemableTokens)
+        internal returns (Redemptions)
+    {
+        Redemptions redemptions = Redemptions(_installNonDefaultApp(_dao, REDEMPTIONS_APP_ID));
+        redemptions.initialize(_agentOrVault, TokenManager(_hookedTokenManager), _redeemableTokens);
+        return redemptions;
+    }
+
+    function _createRedemptionsPermissions(ACL _acl, Redemptions _redemptions, address _admin)
+        internal
+    {
+        _acl.createPermission(_admin, _redemptions, _redemptions.REDEEM_ROLE(), _admin);
+        _acl.createPermission(_admin, _redemptions, _redemptions.ADD_TOKEN_ROLE(), _admin);
+        _acl.createPermission(_admin, _redemptions, _redemptions.REMOVE_TOKEN_ROLE(), _admin);
+    }
+
+    function _installConvictionVoting(Kernel _dao, MiniMeToken _stakeToken, Vault _agentOrVault, address _requestToken, uint256[4] _convictionSettings)
         internal returns (ConvictionVoting)
     {
         ConvictionVoting convictionVoting = ConvictionVoting(_installNonDefaultApp(_dao, CONVICTION_VOTING_APP_ID));

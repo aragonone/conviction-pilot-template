@@ -17,7 +17,7 @@
     },
     "rinkeby": {
       "appName": "pilot-template.aragonpm.eth",
-      "address": "0x36cb496e906fd38b95dc73bf67b8cb5988ee0b8c",
+      "address": "0xabd0b7a35587b657a97b9ec45adb79d9daca1bc1",
       "network": "rinkeby",
       "registry": "0x98Df287B6C145399Aaa709692c8D308357bC085D"
     }
